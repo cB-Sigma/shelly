@@ -314,7 +314,7 @@ func (m *MQTT) RPC(ctx context.Context, root, method string, params map[string]a
 	select {
 	case r := <-ch:
 		if r.err != nil {
-			return nil, fmt.Errorf("the device refused %s: RPC error %v: %s", method, r.err.Code, r.err.Message)
+			return nil, fmt.Errorf("the device refused %s: %w", method, r.err)
 		}
 		return r.result, nil
 	case <-t.C:

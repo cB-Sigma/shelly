@@ -21,8 +21,11 @@ Facts from other works
 Shelly's API documentation (shelly-api-docs.shelly.cloud: the Gen1 HTTP
 API, CoIoT and MQTT; the Gen2+ RPC API, its components, authentication,
 the WebSocket and MQTT channels, the outbound WebSocket, BLE RPC). IETF
-RFC 7252 (CoAP framing) and RFC 7616 (HTTP digest with SHA-256). Facts
-only; no documentation text is reproduced.
+RFC 7252 (CoAP framing), RFC 7616 (HTTP digest with SHA-256) and RFC
+6763 (DNS-SD, package discover). Facts only; no documentation text is
+reproduced. A few behaviours of the RPC API (script code read in pages
+by byte offset, script support decided from Shelly.ListMethods) were
+read from aioshelly's source (Apache-2.0); no code was taken.
 
 Dependencies
 ------------

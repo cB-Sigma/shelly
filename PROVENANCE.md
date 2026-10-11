@@ -38,6 +38,17 @@ History:
   the whole description fail to decode before. Interop tests against
   recorded real-device payloads were added (below).
 
+- 2026-10-11 (v0.2.0): typed views (`components.go`), the `Caller` calls
+  with scripts, schedules, webhooks, KVS and virtual components
+  (`calls.go`), Gen1 settings and actions (`gen1settings.go`) and the
+  `discover` package. Field names and method names follow Shelly's
+  component documents; the two answer forms of Webhook.ListSupported and
+  KVS.GetMany, and the two URL forms of Gen1 actions, follow what those
+  documents give for older and newer firmware. That Script.GetCode reads
+  in pages by byte offset, and that aioshelly decides script support from
+  Shelly.ListMethods, was read from aioshelly 13.34.1's RPC device code
+  (facts only, no code taken).
+
 Files marked "Copyright 2026 Abhinav Gautam" were written or rewritten
 for this module.
 
@@ -54,6 +65,10 @@ for this module.
 | MQTT (mqtt.go) | Gen1 docs: MQTT topics and commands; Gen2+ docs: MQTT channel (events/rpc, rpc, online) |
 | BLE RPC (ble.go) | Gen2+ docs: BLE RPC service and characteristics |
 | Firmware (firmware.go) | Gen1 /ota; Gen2+ Shelly.Update |
+| Typed views (components.go) | Gen2+ docs: the status and configuration of Switch, Cover, Light, RGB, RGBW, CCT, Input, EM, EMData, EM1, EM1Data, PM1, Temperature, Humidity, DevicePower, Sys, WiFi |
+| Calls (calls.go) | Gen2+ docs: Shelly.GetComponents, Script, Schedule, Webhook, KVS, Virtual and the virtual component types |
+| Gen1 settings (gen1settings.go) | Gen1 docs: /settings, /settings/relay, /settings/roller, /settings/light, /settings/actions |
+| Discovery (discover/) | Gen2+ docs: mDNS service and TXT keys; Gen1 docs: CoIoT; RFC 6763 (DNS-SD) |
 
 The list form of a /cit/d sensor's `L` was learnt from reading aioshelly's
 block device code (facts only).
@@ -75,6 +90,14 @@ Run on 2026-10-11:
 - github.com/cB-Sigma/shelly-sim's `interop/` ran aioshelly against the
   simulator; the bugs it found were in the simulator, and are recorded
   there.
+
+For v0.2.0, aioshelly 13.34.1 also ran its script, KVS, virtual
+component and dynamic component calls against shelly-sim (35 checks,
+all passed, after a simulator deadlock on Number.Set over WebSocket was
+fixed), and this module's typed calls run the same flows in shelly-sim's
+tests; this module's MQTT type ran against simulated devices on an
+embedded mochi-mqtt broker, and `discover` against DNS-SD records
+announced over multicast by github.com/cB-Sigma/mdns.
 
 Not done: a real device, and an independent device emulator. The open
 Shelly emulators found on GitHub on 2026-10-11 each imitate one energy

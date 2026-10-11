@@ -64,3 +64,12 @@ func ExampleParseCoAP() {
 	// Output:
 	// SHSW-1 98CDAC1F0005 /cit/s output 0 1
 }
+
+// ExampleParseStatus reads a switch's output and power from a status.
+func ExampleParseStatus() {
+	st, _ := shelly.ParseStatus([]byte(`{"switch:0":{"id":0,"output":true,"apower":42.5,"aenergy":{"total":1200}},"sys":{"uptime":60}}`))
+	if sw, ok := st.Switch(0); ok {
+		fmt.Println(sw.Output, *sw.APower, sw.AEnergy.Total)
+	}
+	// Output: true 42.5 1200
+}

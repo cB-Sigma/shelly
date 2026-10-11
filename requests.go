@@ -6,6 +6,7 @@ package shelly
 import (
 	"math"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -90,18 +91,19 @@ func SplitKey(k string) (typ string, id int, ok bool) {
 
 // MethodPrefix is the RPC namespace of a Gen2+ component type: switch →
 // Switch, light → Light, rgb → RGB, rgbw → RGBW, cct → CCT, cover →
-// Cover.
+// Cover; the namespaces spelled otherwise (WiFi, KVS, BLE, MQTT, EM,
+// EMData, EM1, EM1Data, PM1, DevicePower) as the device names them.
 func MethodPrefix(typ string) string {
-	switch typ {
-	case "rgb":
-		return "RGB"
-	case "rgbw":
-		return "RGBW"
-	case "cct":
-		return "CCT"
+	if p, ok := prefixes[typ]; ok {
+		return p
 	}
 	if typ == "" {
 		return ""
 	}
 	return strings.ToUpper(typ[:1]) + typ[1:]
 }
+
+var prefixes = map[string]string{"rgb": "RGB", "rgbw": "RGBW", "cct": "CCT", "wifi": "WiFi", "kvs": "KVS", "ble": "BLE",
+	"mqtt": "MQTT", "em": "EM", "em1": "EM1", "emdata": "EMData", "em1data": "EM1Data", "pm1": "PM1", "devicepower": "DevicePower"}
+
+func sortStrings(s []string) { sort.Strings(s) }

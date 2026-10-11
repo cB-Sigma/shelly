@@ -25,19 +25,20 @@ SigmaM2M, a oneM2M platform, whose Shelly integration it serves.
 | MQTT mode: Gen1 topics and commands, Gen2+ notifications and JSON-RPC | yes, over the application's MQTT client (`Publisher`, `Filters`, `Handle`) |
 | BLE RPC framing | yes, over the application's Bluetooth stack (`GATT`) |
 | Wi-Fi setup (Gen1 /settings/sta, Gen2+ WiFi.SetConfig), firmware update by URL | yes |
+| Typed status and configuration: switch, cover, light/rgb/rgbw/cct, input (switch, analog, counter), em, emdata, em1, em1data, pm1, temperature, humidity, devicepower, sys, wifi | yes, as views over the maps (`Status`, `Config`); unknown components and fields stay readable |
+| Typed calls over any transport (`Caller`: HTTP, MQTT, BLE, your own) | yes: status, config, `<Type>.SetConfig`, switch, cover, light, components with paging |
+| Scripts: create, upload in chunks, read back in pages, start, stop, eval, status, config, delete | yes |
+| Schedules, webhooks (with the supported-event list), KVS (with etags, both GetMany forms), virtual components | yes |
+| Gen1 settings beyond Wi-Fi: /settings and /settings/<section>/<n>, actions (/settings/actions, both URL forms) | yes |
+| Discovery: DNS-SD (`_shelly._tcp`, `_http._tcp`) through your mDNS browser, CoIoT, a subnet scan; each confirmed with GET /shelly | yes, package `discover` |
+| The Shelly cloud | no: needs a Shelly cloud account and its auth key (see Not yet) |
 
 Left out on purpose:
 
-- Discovery. Gen2+ devices announce `_shelly._tcp` over mDNS; browse with
-  an mDNS library such as [mdns](https://github.com/cB-Sigma/mdns). Gen1
-  devices are also found by their CoIoT messages (`ListenCoIoT`).
-- Typed per-component models. Status and configuration stay maps by
-  component key (`switch:0`), so new components and fields reach the
-  application without a new release.
-- A Bluetooth stack and an MQTT client: they come from the application,
-  which keeps this module free of cgo and heavy dependencies.
-- The Shelly cloud, scripts, schedules, webhooks, Gen1 settings beyond
-  Wi-Fi.
+- An mDNS implementation, a Bluetooth stack and an MQTT client: they come
+  from the application, which keeps this module free of cgo and heavy
+  dependencies. `discover.Browser` takes any mDNS browser;
+  [mdns](https://github.com/cB-Sigma/mdns) is one (below).
 
 ## Choosing a Go Shelly library
 
@@ -56,19 +57,23 @@ row.
 | Server for the outbound WebSocket of sleeping devices | yes | no (Ws.SetConfig only) | no |
 | Gen2+ RPC over MQTT | yes, over your client | yes, on Eclipse Paho | partial (no events/rpc) |
 | BLE RPC | framing over your GATT | yes, on tinygo bluetooth | no |
-| Typed component models | no, maps | yes, Gen1 and Gen2+ | yes, Gen2+ |
-| Discovery, cloud API | no | mDNS, CoIoT, BLE, Wi-Fi; cloud | no |
+| Typed component models | Gen2+ status and configuration of the common components, as views over the maps; Gen1 as maps | yes, Gen1 and Gen2+ | yes, Gen2+ |
+| Scripts, schedules, webhooks, KVS, virtual components | yes | yes | types only |
+| Gen1 settings and actions | yes | yes | no |
+| Discovery | DNS-SD over your mDNS browser, CoIoT, subnet scan | mDNS, CoIoT, BLE, Wi-Fi | no |
+| Cloud API | no | yes | no |
 | Simulator for tests | yes ([shelly-sim](https://github.com/cB-Sigma/shelly-sim)) | mocks and one fixture | no |
 | cgo | none | on macOS, through tinygo bluetooth | none |
 | Direct dependencies | coder/websocket | 6 (Paho, gorilla/websocket, tinygo bluetooth, gonetworkmanager, mdlayher/wifi, testcontainers-go) | 4 (Paho, google/uuid, mongoose-os/mos, testify) |
-| Size (non-test Go lines) | about 1,800 | about 61,600 | about 6,200 |
+| Size (non-test Go lines) | about 3,450 | about 61,600 | about 6,200 |
 
 Pick this module for a gateway or integration that has to reach every
 generation, take pushes by every route (CoIoT, the WebSocket channel,
 sleeping devices' outbound WebSocket, MQTT) and stay small and free of
-cgo, and that is happy with status as maps. Pick tj-smith47/shelly-go for
-typed models of each component, discovery and the Shelly cloud in one
-package. Pick jcodybaker/go-shelly if you build on mongoose-os's RPC
+cgo, with typed views where you want them and the raw maps where a new
+component appears. Pick tj-smith47/shelly-go for the Shelly cloud, BLE
+and Wi-Fi discovery on its own stacks, or typed models of every Gen1
+endpoint and rarer Gen2+ components. Pick jcodybaker/go-shelly if you build on mongoose-os's RPC
 tooling and need only Gen2+ devices.
 
 ## Install
@@ -96,6 +101,34 @@ if info.Generation() >= 2 {
 }
 ```
 
+Typed views and the newer calls take any `Caller` (a `*Client`, an
+`MQTTDevice`, a `BLEDevice`):
+
+```go
+st, _ := shelly.GetStatus(ctx, c)
+if sw, ok := st.Switch(0); ok && sw.APower != nil {
+	fmt.Println(sw.Output, *sw.APower)
+}
+id, _ := shelly.CreateScript(ctx, c, "blink")
+_ = shelly.PutScriptCode(ctx, c, id, code, 0) // in chunks
+_, _ = shelly.StartScript(ctx, c, id)
+_, _, _ = shelly.KVSSet(ctx, c, "mode", "eco", "")
+```
+
+Discovery with [mdns](https://github.com/cB-Sigma/mdns) as the browser:
+
+```go
+browse := func(ctx context.Context, svc string) ([]discover.Service, error) {
+	list, err := mdns.Browse(ctx, svc, mdns.Options{})
+	out := make([]discover.Service, 0, len(list))
+	for _, s := range list {
+		out = append(out, discover.Service{Instance: s.Instance, Host: s.Host, Port: s.Port, IPs: s.IPs, TXT: s.TXT})
+	}
+	return out, err
+}
+devices, err := discover.MDNS(ctx, browse, discover.Options{})
+```
+
 The runnable examples are `Example`, `ExampleGen1Level` and
 `ExampleParseCoAP` in example_test.go; `go test` runs them.
 
@@ -106,6 +139,8 @@ API reference: https://pkg.go.dev/github.com/cB-Sigma/shelly
 | Package | What it does |
 |---|---|
 | `shelly` (module root) | `Client` (`Shelly`, `Get1`, `Get`, `RPC`, `SetWiFi`, `Update`, `WaitVersion`, `OutboundWS`, `SetOutboundWS`, `Reboot`, `CitDescription`), `Info`, `RPCError`, `ErrAuth`, `DigestResponse`, `WSAuth`, `BaseURL`. Push: `WatchWS` and `Events` (Gen2+ WebSocket), `Inbound` and `ServeInbound` (outbound WebSocket), `ParseCoAP`, `EncodeCoIoT`, `CitDesc.Decode`, `ListenCoIoT` (CoIoT), `MQTT` with `Publisher`, `ParseGen1Report`, `Gen1MQTT` (MQTT mode). Requests: `Gen1Turn`, `Gen1Level`, `Gen1Colour`, `Gen1Roller`, `Gen1RollerPos`, `MethodPrefix`, `SplitKey`. Setup: `BLERPC` over a `GATT`, `WiFiConfig` |
+| `shelly`, typed views and calls | `Status` and `Config` (`ParseStatus`, `ParseConfig`, `Switch`, `Cover`, `Light`, `Input`, `EM`, `EMData`, `EM1`, `EM1Data`, `PM1`, `Temperature`, `Humidity`, `DevicePower`, `Sys`, `WiFi`, `Keys`, `Decode`); `Caller`, `CallerFunc`, `MQTTDevice`, `BLEDevice`, `IsRPCError`; `GetStatus`, `GetConfig`, `GetDeviceInfo`, `GetComponents`, `SetConfig`, `SetSwitch`, `ToggleSwitch`, `GetSwitch`, `GetCover`, `MoveCover`, `CoverToPosition`, `SetLight`; scripts (`ListScripts`, `CreateScript`, `PutScriptCode`, `GetScriptCode`, `StartScript`, `StopScript`, `EvalScript`, `GetScriptStatus`, `SetScriptConfig`, `DeleteScript`), schedules (`CreateSchedule`, `UpdateSchedule`, `ListSchedules`, `DeleteSchedule`, `DeleteAllSchedules`), webhooks (`CreateWebhook`, `UpdateWebhook`, `ListWebhooks`, `DeleteWebhook`, `DeleteAllWebhooks`, `WebhookEvents`), KVS (`KVSSet`, `KVSGet`, `KVSGetMany`, `KVSList`, `KVSDelete`), virtual components (`AddVirtual`, `DeleteVirtual`, `SetVirtual`); Gen1 `Gen1Settings`, `Client.Settings1`, `Client.Gen1Actions`, `Gen1SetAction`, `Gen1ActionNames` |
+| `discover` | `MDNS` over a `Browser`, `Scan`, `ListenCoIoT`, `Probe`, `FromService`, `FromCoIoT` |
 | `interop` (nested module, tests only) | the client against payloads recorded from real devices (see below) |
 
 Changes per version are in [CHANGELOG.md](CHANGELOG.md).
@@ -121,7 +156,10 @@ The tests here use a small fake device written in the test
 the full simulator (every request, CoIoT, MQTT, the WebSocket channel,
 the outbound WebSocket, BLE, Wi-Fi setup and firmware updates) are in
 [shelly-sim](https://github.com/cB-Sigma/shelly-sim), so this module does
-not depend on its simulator. Two tests carry `// Covers: SIG-...`
+not depend on its simulator. The typed views are tested against status
+and configuration documents in the shape devices send, and the newer
+calls against a recording `Caller`; `discover` against test servers on
+loopback and a CoIoT socket. Two tests carry `// Covers: SIG-...`
 comments: these are requirement IDs of the SigmaM2M project's compliance
 report and have no meaning outside it.
 
@@ -149,10 +187,24 @@ cd interop && SIGMA_SHELLY_INTEROP=1 go test -v ./...
   correctly. The dumps are anonymised recordings made by those projects'
   contributors; the serving is ours.
 - aioshelly 13.34.1 against the simulator in
-  [shelly-sim](https://github.com/cB-Sigma/shelly-sim): checks the
-  simulator this module's integration tests use, not this module.
-- Not yet: a real device on a network, BLE RPC against a device, MQTT
-  against a broker with devices, CoIoT multicast from a device.
+  [shelly-sim](https://github.com/cB-Sigma/shelly-sim), including, for
+  v0.2.0, scripts, KVS, virtual components, schedules, webhooks,
+  per-component configuration, Gen3 and Gen4 devices, a Pro 3EM and a
+  timed cover: checks the simulator this module's integration tests use.
+  The same simulator behaviours are then driven by this module's typed
+  calls in shelly-sim's tests, so the two clients agree on them.
+- shelly-sim's tests also run this module's `MQTT` type against simulated
+  devices connected to a real broker (mochi-mqtt v2.7.9, embedded), and
+  `discover.MDNS` against the devices' DNS-SD records announced over real
+  multicast by [mdns](https://github.com/cB-Sigma/mdns) (shelly-sim's
+  `interop`, 2026-10-11).
+- Not yet, needing hardware: a real device on a network (each
+  generation), BLE RPC against a device, CoIoT multicast from a device,
+  MQTT with real devices on a broker, a script actually run by a
+  device's script engine.
+- Not yet, needing a vendor account: the Shelly cloud API (its
+  server-side endpoints need an account's auth key and server name, so
+  there is nothing to test against without one).
 
 ## Related repositories
 

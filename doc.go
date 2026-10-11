@@ -19,6 +19,11 @@
 //     (Client.SetWiFi) or over BLE RPC (BLERPC, over the application's
 //     Bluetooth stack through GATT); firmware updates by URL
 //     (Client.Update, Client.WaitVersion).
+//   - Typed views of Gen2+ status and configuration (Status, Config) and
+//     typed calls over any transport (Caller): outputs, scripts,
+//     schedules, webhooks, the key-value store and virtual components;
+//     Gen1 settings and actions (Gen1Settings, Client.Gen1Actions).
+//     Package discover finds devices by DNS-SD, CoIoT or a scan.
 //
 // The package logs nothing and keeps no state beyond a Client's digest
 // challenge and an MQTT's pending requests. Networking goes through the
