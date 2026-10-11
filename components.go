@@ -379,6 +379,49 @@ func (s Status) Sys() (v SysStatus, ok bool) { return v, s.Decode("sys", &v) }
 // WiFi reads wifi.
 func (s Status) WiFi() (v WiFiStatus, ok bool) { return v, s.Decode("wifi", &v) }
 
+// AlarmStatus is a smoke or flood component's status: the alarm and
+// whether it was muted.
+type AlarmStatus struct {
+	ID     int      `json:"id"`
+	Alarm  bool     `json:"alarm"`
+	Mute   bool     `json:"mute"`
+	Errors []string `json:"errors,omitempty"`
+}
+
+// IlluminanceStatus is an illuminance component's status: lux and the
+// device's level (dark, twilight, bright).
+type IlluminanceStatus struct {
+	ID           int      `json:"id"`
+	Lux          *float64 `json:"lux"`
+	Illumination string   `json:"illumination,omitempty"`
+	Errors       []string `json:"errors,omitempty"`
+}
+
+// VoltmeterStatus is a voltmeter component's status (add-on analog
+// input); XVoltage is the value after the configured transformation.
+type VoltmeterStatus struct {
+	ID       int      `json:"id"`
+	Voltage  *float64 `json:"voltage"`
+	XVoltage *float64 `json:"xvoltage,omitempty"`
+	Errors   []string `json:"errors,omitempty"`
+}
+
+// Smoke reads smoke:id.
+func (s Status) Smoke(id int) (v AlarmStatus, ok bool) { return v, s.Decode(idKey("smoke", id), &v) }
+
+// Flood reads flood:id.
+func (s Status) Flood(id int) (v AlarmStatus, ok bool) { return v, s.Decode(idKey("flood", id), &v) }
+
+// Illuminance reads illuminance:id.
+func (s Status) Illuminance(id int) (v IlluminanceStatus, ok bool) {
+	return v, s.Decode(idKey("illuminance", id), &v)
+}
+
+// Voltmeter reads voltmeter:id.
+func (s Status) Voltmeter(id int) (v VoltmeterStatus, ok bool) {
+	return v, s.Decode(idKey("voltmeter", id), &v)
+}
+
 // SwitchConfig is a switch component's configuration. InMode is how the
 // input drives it (momentary, follow, flip, detached, cycle, activate);
 // InitialState is on, off, restore_last or match_input.

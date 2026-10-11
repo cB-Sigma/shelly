@@ -49,6 +49,25 @@ History:
   Shelly.ListMethods, was read from aioshelly 13.34.1's RPC device code
   (facts only, no code taken).
 
+- 2026-10-12 (v0.3.0): the webhook and action URL receiver (`hooks.go`),
+  the `bthome` package (BTHome v1 and v2 decoding and v2 building, AES-CCM
+  written from RFC 3610), the BTHome component calls and views, relayed
+  advertisements and Shelly manufacturer data (`bluetooth.go`), and views
+  of smoke, flood, illuminance and voltmeter. Facts used: Shelly's Gen1
+  docs for action names and the parameters sensors add to report URLs;
+  Shelly's Gen2+ Webhook page for URL tokens; Shelly's BTHome,
+  BTHomeDevice and BTHomeSensor pages for methods, fields and events;
+  bthome.io (format and encryption pages) for the BTHome object table,
+  flags, nonce and the worked examples used as test vectors; bthome-ble
+  3.24.0 (MIT) to check the object table, the version 1 layout, the
+  command object's length byte and the address-in-payload flag; aioshelly
+  13.34.1 (Apache-2.0) for the "ble.scan_result" event forms (versions 1
+  and 2) and the blocks of Shelly manufacturer data. tj-smith47/shelly-go
+  v0.14.0 was read for comparison; where it differs from Shelly's pages
+  (the answer key "added", the "objects"/"obj_name" form of
+  BTHome.GetObjectInfos) the pages were followed and both forms are read.
+  `BLERelayScript` is our own script. No code was taken from any of them.
+
 Files marked "Copyright 2026 Abhinav Gautam" were written or rewritten
 for this module.
 
@@ -69,6 +88,9 @@ for this module.
 | Calls (calls.go) | Gen2+ docs: Shelly.GetComponents, Script, Schedule, Webhook, KVS, Virtual and the virtual component types |
 | Gen1 settings (gen1settings.go) | Gen1 docs: /settings, /settings/relay, /settings/roller, /settings/light, /settings/actions |
 | Discovery (discover/) | Gen2+ docs: mDNS service and TXT keys; Gen1 docs: CoIoT; RFC 6763 (DNS-SD) |
+| Webhook receiver (hooks.go) | Gen1 docs: actions, report_url parameters; Gen2+ docs: Webhook URL tokens |
+| BTHome (bthome/) | bthome.io format and encryption pages; RFC 3610 (CCM, and its packet vector #1 as a test); checked against bthome-ble 3.24.0 |
+| Bluetooth through devices (bluetooth.go) | Gen2+ docs: BTHome, BTHomeDevice, BTHomeSensor; aioshelly 13.34.1: ble.scan_result forms, manufacturer data blocks |
 
 The list form of a /cit/d sensor's `L` was learnt from reading aioshelly's
 block device code (facts only).
@@ -98,6 +120,15 @@ fixed), and this module's typed calls run the same flows in shelly-sim's
 tests; this module's MQTT type ran against simulated devices on an
 embedded mochi-mqtt broker, and `discover` against DNS-SD records
 announced over multicast by github.com/cB-Sigma/mdns.
+
+For v0.3.0 (2026-10-12): bthome-ble 3.24.0 decoded 106 packets built by
+package `bthome` (every object id it knows, every button, dimmer and
+command event, two encrypted packets, one with the address in the
+payload), in python:3.12.10-slim; every value agreed with package
+`bthome`'s own decoding. The RFC 3610 vector and bthome.io's two worked
+examples pass as unit tests. In shelly-sim's interop, aioshelly 13.34.1
+installed its relay script on a simulated device and read the relayed
+advertisements, which bthome-ble decoded.
 
 Not done: a real device, and an independent device emulator. The open
 Shelly emulators found on GitHub on 2026-10-11 each imitate one energy

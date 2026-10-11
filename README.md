@@ -8,7 +8,9 @@ It speaks Gen1 HTTP with basic authentication, CoIoT and MQTT, and the
 Gen2, Gen3 and Gen4 JSON-RPC API over HTTP with SHA-256 digest
 authentication, over the WebSocket notification channel, over the
 outbound WebSocket that sleeping devices open, over MQTT and over BLE; it
-also sets up a new device's Wi-Fi and updates firmware by URL. Its one
+also sets up a new device's Wi-Fi and updates firmware by URL, receives
+webhooks and action URLs, and reads Shelly BLU and other BTHome
+Bluetooth sensors (package `bthome`, with AES-CCM). Its one
 dependency is coder/websocket; there is no cgo. It was written for
 SigmaM2M, a oneM2M platform, whose Shelly integration it serves.
 
@@ -31,6 +33,10 @@ SigmaM2M, a oneM2M platform, whose Shelly integration it serves.
 | Schedules, webhooks (with the supported-event list), KVS (with etags, both GetMany forms), virtual components | yes |
 | Gen1 settings beyond Wi-Fi: /settings and /settings/<section>/<n>, actions (/settings/actions, both URL forms) | yes |
 | Discovery: DNS-SD (`_shelly._tcp`, `_http._tcp`) through your mDNS browser, CoIoT, a subnet scan; each confirmed with GET /shelly | yes, package `discover` |
+| Webhook and action URL receiver: an `http.Handler` for Gen2+ webhooks (with `${...}` URL tokens), Gen1 actions and Gen1 sensor report URLs, with a shared token and a source check (`HookHandler`, `HookURL`, `HookWebhook`) | yes, since v0.3.0 |
+| BTHome (Shelly BLU and other BTHome sensors): v2 and v1 decoding, AES-CCM encryption, every object id of the format, events, a packet builder, advertising data, replay guard | yes, package `bthome`, since v0.3.0 |
+| Bluetooth through Gen2+ devices: the BTHome component (add and delete devices and sensors, discovery, object information, known objects, events, typed status), relayed advertisements (`ble.scan_result`, with a relay script), Shelly manufacturer data | yes, since v0.3.0 |
+| Typed views of smoke, flood, illuminance, voltmeter | yes, since v0.3.0 |
 | The Shelly cloud | no: needs a Shelly cloud account and its auth key (see Not yet) |
 
 Left out on purpose:
@@ -61,19 +67,25 @@ row.
 | Scripts, schedules, webhooks, KVS, virtual components | yes | yes | types only |
 | Gen1 settings and actions | yes | yes | no |
 | Discovery | DNS-SD over your mDNS browser, CoIoT, subnet scan | mDNS, CoIoT, BLE, Wi-Fi | no |
+| Webhook and action URL receiver | yes (`HookHandler`) | no (creates webhooks only) | no |
+| BTHome decoding | every object id of the format, v1 and v2, AES-CCM decryption, builder; checked against bthome-ble | nine object ids, no decryption | no |
+| BTHome component of Gen2+ devices | calls, views and events | calls and types | no |
+| Relayed advertisements (`ble.scan_result`) | yes, with a relay script | no | no |
 | Cloud API | no | yes | no |
 | Simulator for tests | yes ([shelly-sim](https://github.com/cB-Sigma/shelly-sim)) | mocks and one fixture | no |
 | cgo | none | on macOS, through tinygo bluetooth | none |
 | Direct dependencies | coder/websocket | 6 (Paho, gorilla/websocket, tinygo bluetooth, gonetworkmanager, mdlayher/wifi, testcontainers-go) | 4 (Paho, google/uuid, mongoose-os/mos, testify) |
-| Size (non-test Go lines) | about 3,450 | about 61,600 | about 6,200 |
+| Size (non-test Go lines) | about 5,400 | about 61,600 | about 6,200 |
 
 Pick this module for a gateway or integration that has to reach every
 generation, take pushes by every route (CoIoT, the WebSocket channel,
 sleeping devices' outbound WebSocket, MQTT) and stay small and free of
 cgo, with typed views where you want them and the raw maps where a new
-component appears. Pick tj-smith47/shelly-go for the Shelly cloud, BLE
-and Wi-Fi discovery on its own stacks, or typed models of every Gen1
-endpoint and rarer Gen2+ components. Pick jcodybaker/go-shelly if you build on mongoose-os's RPC
+component appears, receive webhooks, or read Shelly BLU and other
+BTHome sensors (through a Shelly device or your own Bluetooth scanner).
+Pick tj-smith47/shelly-go for the Shelly cloud, BLE scanning and Wi-Fi
+discovery on its own stacks, or typed models of every Gen1 endpoint and
+rarer Gen2+ components. Pick jcodybaker/go-shelly if you build on mongoose-os's RPC
 tooling and need only Gen2+ devices.
 
 ## Install
@@ -129,8 +141,25 @@ browse := func(ctx context.Context, svc string) ([]discover.Service, error) {
 devices, err := discover.MDNS(ctx, browse, discover.Options{})
 ```
 
+Receiving webhooks, and BTHome sensors heard by a Gen2+ device:
+
+```go
+http.Handle("/hooks/", &shelly.HookHandler{Prefix: "/hooks", Token: secret,
+	Handle: func(h shelly.Hook) { tC, _ := h.Float("tC"); log.Println(h.Device, h.Event, tC) }})
+_, _, _ = shelly.CreateWebhook(ctx, c, shelly.HookWebhook("http://192.168.1.10:8080/hooks", id,
+	"temperature.change", 0, map[string]string{"tC": "${ev.tC}"}, secret))
+
+_, devID, _ := shelly.BTHomeAddDevice(ctx, c, shelly.BTHomeDeviceConfig{Addr: "3c:2e:f5:71:d5:2a", Key: bindKey}, 0)
+st, _ := shelly.GetStatus(ctx, c)
+d, _ := st.BTHomeDevice(devID) // battery, RSSI, packet id
+
+// Or decode advertisements yourself (relayed by BLERelayScript, or from your scanner):
+p, err := bthome.DecodeAdvertising(adv, "3C:2E:F5:71:D5:2A", key)
+```
+
 The runnable examples are `Example`, `ExampleGen1Level` and
-`ExampleParseCoAP` in example_test.go; `go test` runs them.
+`ExampleParseCoAP` in example_test.go, and `ExampleDecode` in
+bthome/; `go test` runs them.
 
 ## Documentation
 
@@ -140,6 +169,8 @@ API reference: https://pkg.go.dev/github.com/cB-Sigma/shelly
 |---|---|
 | `shelly` (module root) | `Client` (`Shelly`, `Get1`, `Get`, `RPC`, `SetWiFi`, `Update`, `WaitVersion`, `OutboundWS`, `SetOutboundWS`, `Reboot`, `CitDescription`), `Info`, `RPCError`, `ErrAuth`, `DigestResponse`, `WSAuth`, `BaseURL`. Push: `WatchWS` and `Events` (Gen2+ WebSocket), `Inbound` and `ServeInbound` (outbound WebSocket), `ParseCoAP`, `EncodeCoIoT`, `CitDesc.Decode`, `ListenCoIoT` (CoIoT), `MQTT` with `Publisher`, `ParseGen1Report`, `Gen1MQTT` (MQTT mode). Requests: `Gen1Turn`, `Gen1Level`, `Gen1Colour`, `Gen1Roller`, `Gen1RollerPos`, `MethodPrefix`, `SplitKey`. Setup: `BLERPC` over a `GATT`, `WiFiConfig` |
 | `shelly`, typed views and calls | `Status` and `Config` (`ParseStatus`, `ParseConfig`, `Switch`, `Cover`, `Light`, `Input`, `EM`, `EMData`, `EM1`, `EM1Data`, `PM1`, `Temperature`, `Humidity`, `DevicePower`, `Sys`, `WiFi`, `Keys`, `Decode`); `Caller`, `CallerFunc`, `MQTTDevice`, `BLEDevice`, `IsRPCError`; `GetStatus`, `GetConfig`, `GetDeviceInfo`, `GetComponents`, `SetConfig`, `SetSwitch`, `ToggleSwitch`, `GetSwitch`, `GetCover`, `MoveCover`, `CoverToPosition`, `SetLight`; scripts (`ListScripts`, `CreateScript`, `PutScriptCode`, `GetScriptCode`, `StartScript`, `StopScript`, `EvalScript`, `GetScriptStatus`, `SetScriptConfig`, `DeleteScript`), schedules (`CreateSchedule`, `UpdateSchedule`, `ListSchedules`, `DeleteSchedule`, `DeleteAllSchedules`), webhooks (`CreateWebhook`, `UpdateWebhook`, `ListWebhooks`, `DeleteWebhook`, `DeleteAllWebhooks`, `WebhookEvents`), KVS (`KVSSet`, `KVSGet`, `KVSGetMany`, `KVSList`, `KVSDelete`), virtual components (`AddVirtual`, `DeleteVirtual`, `SetVirtual`); Gen1 `Gen1Settings`, `Client.Settings1`, `Client.Gen1Actions`, `Gen1SetAction`, `Gen1ActionNames` |
+| `shelly`, receiving and Bluetooth (v0.3.0) | `HookHandler`, `Hook`, `HookURL`, `HookWebhook`, the Gen1 action names; `BTHomeAddDevice`, `BTHomeAddSensor`, `BTHomeDeleteDevice`, `BTHomeDeleteSensor`, `BTHomeStartDiscovery`, `BTHomeObjectInfos`, `BTHomeKnownObjects`, `BTHomeResetEncryptionCounter`, `Status.BTHomeDevice`/`BTHomeSensor`, `Config.BTHomeDevice`/`BTHomeSensor`, `ParseBTHomeDiscovered`, `ParseBTHomeDeviceEvent`, `ParseBLEScanResult`, `ParseBLEScanEvent`, `ScanResultData`, `BLEAdvert`, `BLERelayScript`, `ParseBLEMfData`; `Status.Smoke`, `Flood`, `Illuminance`, `Voltmeter` |
+| `bthome` | `Decode`, `DecodeAdvertising`, `Packet`, `Object`, `Info`, `Objects`, `Builder` (`Add`, `Button`, `Dimmer`, `Command`, `Text`, `Raw`, `Firmware`, `ServiceData`, `Seal`), `ParseAD`, `ServiceData16`, `Manufacturer`, `LocalName`, `Advertising`, `Guard`, `ParseMAC` |
 | `discover` | `MDNS` over a `Browser`, `Scan`, `ListenCoIoT`, `Probe`, `FromService`, `FromCoIoT` |
 | `interop` (nested module, tests only) | the client against payloads recorded from real devices (see below) |
 
@@ -193,6 +224,26 @@ cd interop && SIGMA_SHELLY_INTEROP=1 go test -v ./...
   timed cover: checks the simulator this module's integration tests use.
   The same simulator behaviours are then driven by this module's typed
   calls in shelly-sim's tests, so the two clients agree on them.
+- bthome-ble 3.24.0 (MIT; the BTHome parser Home Assistant uses), in
+  python:3.12.10-slim in Docker (`interop`, 2026-10-12): package `bthome`
+  built a packet for every object id it knows (91), for every button,
+  dimmer and command event (14) and one encrypted packet with several
+  objects and one with the address in the payload; bthome-ble decoded all
+  106 and every value, event and argument agreed with package `bthome`'s
+  own decoding; bthome-ble verified both bind keys. The worked examples
+  of the format's description and RFC 3610's CCM vector are unit tests.
+- aioshelly 13.34.1 with bthome-ble 3.24.0 against a simulated Gen3
+  device (shelly-sim's `interop`, 2026-10-12): aioshelly installed its own
+  Bluetooth relay script, the device relayed a simulated BLU door
+  sensor's advertisement as `ble.scan_result` events, aioshelly parsed
+  them and read the Shelly manufacturer data, bthome-ble decoded the
+  BTHome data, and aioshelly added a BTHomeDevice and BTHomeSensor through
+  `call_rpc` and saw the sensor's value in its status. This module's
+  calls drive the same simulated BTHome component in shelly-sim's tests.
+- The webhook receiver ran against shelly-sim's devices calling their
+  Gen2+ webhooks (URL tokens replaced by the simulator) and Gen1 action
+  and report URLs; no independent device calls webhooks, so that is our
+  own reading of the documents on both ends.
 - shelly-sim's tests also run this module's `MQTT` type against simulated
   devices connected to a real broker (mochi-mqtt v2.7.9, embedded), and
   `discover.MDNS` against the devices' DNS-SD records announced over real
@@ -201,7 +252,8 @@ cd interop && SIGMA_SHELLY_INTEROP=1 go test -v ./...
 - Not yet, needing hardware: a real device on a network (each
   generation), BLE RPC against a device, CoIoT multicast from a device,
   MQTT with real devices on a broker, a script actually run by a
-  device's script engine.
+  device's script engine (including `BLERelayScript`), a real Shelly BLU
+  sensor's advertisements, webhooks called by a real device.
 - Not yet, needing a vendor account: the Shelly cloud API (its
   server-side endpoints need an account's auth key and server name, so
   there is nothing to test against without one).

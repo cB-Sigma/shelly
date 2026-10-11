@@ -104,6 +104,7 @@ func MethodPrefix(typ string) string {
 }
 
 var prefixes = map[string]string{"rgb": "RGB", "rgbw": "RGBW", "cct": "CCT", "wifi": "WiFi", "kvs": "KVS", "ble": "BLE",
-	"mqtt": "MQTT", "em": "EM", "em1": "EM1", "emdata": "EMData", "em1data": "EM1Data", "pm1": "PM1", "devicepower": "DevicePower"}
+	"mqtt": "MQTT", "em": "EM", "em1": "EM1", "emdata": "EMData", "em1data": "EM1Data", "pm1": "PM1", "devicepower": "DevicePower",
+	"bthome": "BTHome", "bthomedevice": "BTHomeDevice", "bthomesensor": "BTHomeSensor", "bthomecontrol": "BTHomeControl"}
 
 func sortStrings(s []string) { sort.Strings(s) }

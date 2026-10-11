@@ -27,6 +27,15 @@ reproduced. A few behaviours of the RPC API (script code read in pages
 by byte offset, script support decided from Shelly.ListMethods) were
 read from aioshelly's source (Apache-2.0); no code was taken.
 
+Package bthome follows the BTHome format as published at bthome.io (the
+object table, flags and encryption layout; its two worked examples are
+test vectors) and RFC 3610 (AES-CCM; packet vector #1 is a test vector).
+The object table was checked against bthome-ble 3.24.0 (MIT, Copyright
+(c) 2022 Ernst Klamer); the "ble.scan_result" event forms and Shelly
+manufacturer data blocks were read from aioshelly 13.34.1. Facts only; no
+code or text was taken. BTHome is an open format; this module is not
+affiliated with the BTHome project.
+
 Dependencies
 ------------
 
@@ -47,6 +56,10 @@ none of them is included in this repository:
 - Home Assistant core (github.com/home-assistant/core, Apache-2.0,
   Copyright the Home Assistant contributors), commit e8c451ce3967:
   tests/components/shelly/fixtures/.
+
+interop/bthome_test.go installs bthome-ble 3.24.0 (MIT) from PyPI in a
+container at test time and runs our script interop/testdata/bthome_peer.py
+on it; nothing of bthome-ble is kept here.
 
 Test data
 ---------

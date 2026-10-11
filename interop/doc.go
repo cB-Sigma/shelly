@@ -15,6 +15,12 @@
 //     e8c451ce3967c8a94a6bcb5996e9cf72661a826a: the device dumps in
 //     tests/components/shelly/fixtures (Gen2, Gen3 and Gen4 devices).
 //
+// bthome_test.go runs bthome-ble 3.24.0 (MIT; github.com/Bluetooth-Devices/bthome-ble,
+// the parser Home Assistant uses) in a python:3.12.10-slim container:
+// package bthome builds a packet for every object id it knows (plain and
+// encrypted), bthome-ble decodes each with testdata/bthome_peer.py, and
+// the values must equal those package bthome decodes. It needs Docker.
+//
 // The files are fetched at test time from raw.githubusercontent.com at
 // those fixed revisions; none is kept in this repository. A small server
 // in the test answers GET /shelly, the Gen1 GETs and POST /rpc with the
