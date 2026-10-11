@@ -1,0 +1,54 @@
+shelly (Shelly local device APIs, in Go)
+Copyright 2026 Abhinav Gautam
+
+This module is licensed under the Apache License, Version 2.0 (LICENSE).
+
+The code was written for SigmaM2M, a oneM2M platform, from Shelly's public
+API documentation (PROVENANCE.md). It contains no code from other
+projects. The source files that come from SigmaM2M (client.go, coiot.go,
+inbound.go, mqtt.go, ws.go) carry no per-file copyright header, the
+convention of the code they come from; the copyright line above covers
+them. Files added for this module carry "Copyright 2026 Abhinav Gautam"
+and "SPDX-License-Identifier: Apache-2.0".
+
+Shelly is a trademark of Shelly Group. This module is not made, endorsed
+or supported by Shelly Group or its subsidiaries; the name is used only
+to say which devices it talks to.
+
+Facts from other works
+----------------------
+
+Shelly's API documentation (shelly-api-docs.shelly.cloud: the Gen1 HTTP
+API, CoIoT and MQTT; the Gen2+ RPC API, its components, authentication,
+the WebSocket and MQTT channels, the outbound WebSocket, BLE RPC). IETF
+RFC 7252 (CoAP framing) and RFC 7616 (HTTP digest with SHA-256). Facts
+only; no documentation text is reproduced.
+
+Dependencies
+------------
+
+- The Go standard library (BSD-3-Clause, Copyright The Go Authors).
+- github.com/coder/websocket v1.8.15 (ISC licence, Copyright (c) 2025
+  Coder): the WebSocket channel and the outbound WebSocket server.
+
+Interop test data (interop/, not part of the module's packages)
+---------------------------------------------------------------
+
+The nested test-only module interop/ fetches, at test time, payloads
+recorded from real devices that two projects publish as test fixtures;
+none of them is included in this repository:
+
+- aioshelly (github.com/home-assistant-libs/aioshelly, Apache-2.0,
+  Copyright the aioshelly contributors), tag 13.34.1: fixtures/ and
+  tests/rpc_device/fixtures/shellyplus2pm/.
+- Home Assistant core (github.com/home-assistant/core, Apache-2.0,
+  Copyright the Home Assistant contributors), commit e8c451ce3967:
+  tests/components/shelly/fixtures/.
+
+Test data
+---------
+
+Every device id, MAC address, password, Wi-Fi network, address and URL in
+the tests and the examples is a made-up demo value. Model and type codes
+are real model names, chosen to exercise each code path. TestShellyDigest
+uses the SHA-256 worked example of RFC 7616 section 3.9.1.
